@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Globo da Rede</title>
+
+  <!-- Tailwind para estilos -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Dependências: THREE e Globe.gl (com fallback se 1º CDN falhar) -->
+  <script src="https://unpkg.com/three" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js'"></script>
+  <script src="https://unpkg.com/globe.gl" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/globe.gl@2.32.3/dist/globe.gl.min.js'"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; background:#000; overflow: hidden; }
+    #main { display:flex; height:100%; }
+    #globe { flex:1; position: relative; }
+  </style>
+</head>
+<body>
+  <div id="main">
+    <!-- Sidebar -->
+    <aside class="w-72 bg-black/80 border-r border-gray-700 p-4 text-white">
+      <h1 class="text-xl font-bold text-cyan-400 mb-4">Pontos da Rede</h1>
+      <ul id="points-list" class="space-y-2 text-sm"></ul>
+      <p class="mt-6 text-gray-400 text-xs">
+        Dica: clique no nome do ponto ou direto no globo para dar zoom e ver a foto.
+      </p>
+    </aside>
+
+    <!-- Globo -->
+    <main id="globe"></main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-md p-4 relative text-white">
+      <button id="close" class="absolute right-3 top-2 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+      <h2 id="m-title" class="text-xl font-bold text-cyan-400 mb-3"></h2>
+      <img id="m-img" src="" alt="" class="w-full rounded-md" />
+    </div>
+  </div>
+
+  <script>
+    // --- Dados de exemplo (troque/adicione à vontade) ---
+    const points = [
+      { id: 1, lat: -17.2828, lng: -42.7302, name: "Turmalina", img: "https://placehold.co/800x500/0B1220/E2E8F0?text=Turmalina" },
+      { id: 2, lat: -19.918,  lng: -43.938,  name: "Belo Horizonte", img: "https://placehold.co/800x500/0B1220/E2E8F0?text=Belo+Horizonte" }
+    ];
+    const pinColor = "#00FFFF";
+
+    // --- Instanciar globo ---
+    const globeContainer = document.getElementById("globe");
+    const g = Globe()(globeContainer)
+      .globeImageUrl("//unpkg.com/three-globe/example/img/earth-dark.jpg")
+      .bumpImageUrl("//unpkg.com/three-globe/example/img/earth-topology.png")
+      .backgroundColor("#000000")
+      .pointsData(points)
+      .pointLat("lat")
+      .pointLng("lng")
+      .pointColor(() => pinColor)
+      .pointAltitude(0.05)
+      .pointRadius(0.45)
+      .pointLabel(d => `<b style="color:${pinColor}">${d.name}</b>`)
+      .onPointClick(handleFocus);
+
+    // Rotação automática
+    g.controls().autoRotate = true;
+    g.controls().autoRotateSpeed = 0.6;
+
+    // Ajuste de tamanho (inicial + resize)
+    function fit() {
+      g.width(globeContainer.clientWidth);
+      g.height(globeContainer.clientHeight);
+    }
+    window.addEventListener("resize", fit);
+    fit();
+
+    // --- Lista lateral ---
+    const ul = document.getElementById("points-list");
+    points.forEach(p => {
+      const li = document.createElement("li");
+      li.className = "flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-800/50";
+      li.innerHTML = `<span class="inline-block w-3 h-3 rounded-full" style="background:${pinColor}"></span><span class="truncate">${p.name}</span>`;
+      li.onclick = () => handleFocus(p);
+      ul.appendChild(li);
+    });
+
+    // --- Modal ---
+    const modal = document.getElementById("modal");
+    const closeBtn = document.getElementById("close");
+    const mTitle = document.getElementById("m-title");
+    const mImg = document.getElementById("m-img");
+
+    function openModal(p) {
+      mTitle.textContent = p.name;
+      mImg.src = p.img;
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+    }
+    function closeModal() {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+    closeBtn.onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+    // --- Foco (zoom + modal) ---
+    function handleFocus(p) {
+      // pausa rotação enquanto foca
+      g.controls().autoRotate = false;
+      g.pointOfView({ lat: p.lat, lng: p.lng, altitude: 1.4 }, 1000);
+      setTimeout(() => openModal(p), 1000);
+      // volta a girar depois que fechar
+      const restore = () => { g.controls().autoRotate = true; modal.removeEventListener("transitionend", restore); };
+      modal.addEventListener("transitionend", restore);
+    }
+  </script>
+</body>
+</html>
