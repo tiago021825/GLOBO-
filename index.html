@@ -10,6 +10,22 @@
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.32.3/dist/globe.gl.min.js"></script>
 
 <style>
+  #globe {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  z-index: 0;   /* garante que fique atrás */
+}
+aside {
+  z-index: 1;   /* garante que fique na frente */
+  position: relative;
+}
+#globe canvas {
+  position: absolute !important;
+  top: 0; left: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
   html, body { height:100%; margin:0; background:#000; overflow:hidden; font-family:Segoe UI,Roboto,sans-serif; color:#fff; }
   #layout { display:flex; height:100%; width:100%; }
   #globe  { flex:1; position:relative; min-height:300px; }
@@ -30,11 +46,10 @@
 </head>
 <body>
   <div id="layout">
-    <!-- Sidebar -->
-    <aside>
-      <h1>Rede Global • Demo</h1>
-      <button id="btnSeed" class="btn">Carregar Exemplo</button>
-      <button id="btnClear" class="btn btn-danger">Limpar</button>
+ <div id="layout" style="display:flex; height:100vh; width:100vw;">
+  <aside> ... </aside>
+  <main id="globe"></main>
+</div>
 
       <h2>Pontos</h2>
       <form id="pointForm">
@@ -156,3 +171,4 @@ function showErr(msg){const e=document.getElementById("err");e.textContent=msg;e
 </script>
 </body>
 </html>
+
