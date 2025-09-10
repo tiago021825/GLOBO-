@@ -102,6 +102,7 @@
     function closeModal() {
       modal.classList.add("hidden");
       modal.classList.remove("flex");
+      g.controls().autoRotate = true;
     }
     closeBtn.onclick = closeModal;
     modal.onclick = (e) => { if (e.target === modal) closeModal(); };
@@ -112,9 +113,7 @@
       g.controls().autoRotate = false;
       g.pointOfView({ lat: p.lat, lng: p.lng, altitude: 1.4 }, 1000);
       setTimeout(() => openModal(p), 1000);
-      // volta a girar depois que fechar
-      const restore = () => { g.controls().autoRotate = true; modal.removeEventListener("transitionend", restore); };
-      modal.addEventListener("transitionend", restore);
+      // rotação será reativada ao fechar o modal
     }
   </script>
 </body>
