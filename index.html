@@ -27,6 +27,7 @@
   li{padding:6px;border-radius:6px;margin:2px 0;background:#1b2a3e;display:flex;justify-content:space-between;align-items:center}
   li span{cursor:pointer}
   input,select,textarea{margin:4px 0;padding:6px;width:100%;border-radius:6px;border:1px solid #22334a;background:#0b1625;color:#fff}
+  .hint{font-size:12px;color:#9fb3d1;margin-top:4px}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:50}
   .modal.open{display:flex}
   .modal .box{background:#111c2b;border:1px solid #22334a;border-radius:8px;padding:12px;width:min(90vw,480px)}
@@ -49,8 +50,10 @@
           <option value="cliente">Cliente</option>
           <option value="pop">POP</option>
         </select>
-        <input id="pointLat" type="number" step="0.0001" placeholder="Latitude" required>
-        <input id="pointLng" type="number" step="0.0001" placeholder="Longitude" required>
+        <!-- TEXT + inputmode para aceitar ponto ou vírgula; também aceita colar 'lat, lng' -->
+        <input id="pointLat" type="text" inputmode="decimal" placeholder="Latitude (ex.: -17.248096 ou -17,248096)" required>
+        <input id="pointLng" type="text" inputmode="decimal" placeholder="Longitude (ex.: -42.800431 ou -42,800431)" required>
+        <div class="hint">Dica: você pode colar <b>“-17.248096, -42.800431”</b> no campo de Latitude que eu separo pra você.</div>
         <textarea id="pointDesc" placeholder="Descrição"></textarea>
         <input id="pointImgUrl" type="url" placeholder="URL da imagem (opcional)">
         <button type="submit" class="btn">Salvar</button>
@@ -92,6 +95,30 @@ let arcs=JSON.parse(localStorage.getItem(LS_ARCS)||"[]");
 function save(){localStorage.setItem(LS_POINTS,JSON.stringify(points));localStorage.setItem(LS_ARCS,JSON.stringify(arcs));}
 function uuid(){return crypto.randomUUID?crypto.randomUUID():Date.now()+"";}
 
+/* ====== Parse de coordenadas robusto ====== */
+function normalizeNumber(str){
+  if (str == null) return NaN;
+  let s = String(str).trim();
+  if (!s) return NaN;
+  // remove espaços
+  s = s.replace(/\s+/g,'');
+  // se é número com vírgula decimal e sem ponto -> troca vírgula por ponto
+  if (/^-?\d+,\d+$/.test(s)) s = s.replace(',', '.');
+  return parseFloat(s);
+}
+function splitLatLngIfPastedTogether(latField, lngField){
+  // Se o usuário colou "lat, lng" no campo de latitude
+  const raw = latField.value;
+  if (raw.includes(',') && !lngField.value.trim()){
+    const parts = raw.split(',');
+    if (parts.length === 2){
+      latField.value = parts[0].trim();
+      lngField.value = parts[1].trim();
+    }
+  }
+}
+
+/* ====== Globo ====== */
 const g=Globe()(document.getElementById("globe"))
   .globeImageUrl("//unpkg.com/three-globe/example/img/earth-dark.jpg")
   .bumpImageUrl("//unpkg.com/three-globe/example/img/earth-topology.png")
@@ -108,7 +135,7 @@ window.addEventListener("resize",fit);window.addEventListener("load",()=>setTime
 function refresh(){g.pointsData(points);g.arcsData(arcs);}
 refresh();
 
-/* UI */
+/* ====== UI ====== */
 function renderPoints(){
   const list=document.getElementById("pointsList");
   list.innerHTML="";
@@ -135,29 +162,59 @@ function populateArcSelectors(){
   document.getElementById("arcStart").innerHTML=opts;
   document.getElementById("arcEnd").innerHTML=opts;
 }
+
+/* ====== Form de Ponto ====== */
 document.getElementById("pointForm").onsubmit=e=>{
   e.preventDefault();
-  const p={id:document.getElementById("pointId").value||uuid(),
-    name:document.getElementById("pointName").value,
-    type:document.getElementById("pointType").value,
-    lat:parseFloat(document.getElementById("pointLat").value),
-    lng:parseFloat(document.getElementById("pointLng").value),
-    description:document.getElementById("pointDesc").value,
-    img:document.getElementById("pointImgUrl").value};
-  points=points.filter(x=>x.id!==p.id).concat([p]);save();renderPoints();populateArcSelectors();refresh();e.target.reset();
+  const latInput=document.getElementById("pointLat");
+  const lngInput=document.getElementById("pointLng");
+
+  // Se colou "lat, lng" no campo de latitude, separa
+  splitLatLngIfPastedTogether(latInput, lngInput);
+
+  const lat = normalizeNumber(latInput.value);
+  const lng = normalizeNumber(lngInput.value);
+
+  if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180){
+    alert("Coordenadas inválidas.\nExemplos válidos:\n-17.248096, -42.800431\nou\n-17,248096 e -42,800431");
+    return;
+  }
+
+  const p={
+    id: document.getElementById("pointId").value || uuid(),
+    name: document.getElementById("pointName").value.trim(),
+    type: document.getElementById("pointType").value,
+    lat, lng,
+    description: document.getElementById("pointDesc").value.trim(),
+    img: document.getElementById("pointImgUrl").value.trim()
+  };
+
+  points = points.filter(x=>x.id!==p.id).concat([p]);
+  save(); renderPoints(); populateArcSelectors(); refresh();
+  e.target.reset();
+
+  // Foca no ponto recém-criado
+  g.pointOfView({lat:p.lat,lng:p.lng,altitude:1.3},900);
 };
+
+/* ====== Links ====== */
 document.getElementById("btnAddArc").onclick=()=>{
   const s=document.getElementById("arcStart").value,e=document.getElementById("arcEnd").value;
-  if(s&&e&&s!==e){arcs.push({id:uuid(),start:s,end:e,label:document.getElementById("arcLabel").value});save();renderArcs();refresh();}
+  if(s&&e&&s!==e){arcs.push({id:uuid(),start:s,end:e,label:document.getElementById("arcLabel").value.trim()});save();renderArcs();refresh();}
 };
+
+/* ====== Ações rápidas ====== */
 document.getElementById("btnSeed").onclick=()=>{
-  points=[{id:uuid(),lat:-23.55,lng:-46.63,name:"POP São Paulo",type:"pop",description:"SP"},
-          {id:uuid(),lat:-22.90,lng:-43.17,name:"Torre Rio",type:"torre",description:"RJ"}];
+  points=[
+    {id:uuid(),lat:-23.55,lng:-46.63,name:"POP São Paulo",type:"pop",description:"SP"},
+    {id:uuid(),lat:-22.90,lng:-43.17,name:"Torre Rio",type:"torre",description:"RJ"}
+  ];
   arcs=[{id:uuid(),start:points[0].id,end:points[1].id,label:"SP-RJ"}];
   save();renderPoints();renderArcs();populateArcSelectors();refresh();
 };
 document.getElementById("btnClear").onclick=()=>{points=[];arcs=[];save();renderPoints();renderArcs();refresh();populateArcSelectors();};
 
+/* ====== Modal ====== */
 function openModal(p){
   document.getElementById("mTitle").textContent=p.name;
   document.getElementById("mDesc").textContent=p.description||"";
