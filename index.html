@@ -1,586 +1,467 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Globo da Rede – Visual Presenter</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Globo da Rede – Visual Presenter (CSS puro)</title>
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+<!-- THREE + Globe.gl (com fallback) -->
+<script src="https://unpkg.com/three" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js'"></script>
+<script src="https://unpkg.com/globe.gl" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/globe.gl@2.32.3/dist/globe.gl.min.js'"></script>
 
-  <!-- Dependências: THREE + Globe.gl (com fallback) -->
-  <script src="https://unpkg.com/three" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js'"></script>
-  <script src="https://unpkg.com/globe.gl" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/globe.gl@2.32.3/dist/globe.gl.min.js'"></script>
+<style>
+  :root{
+    --bg:#000; --panel:#0b0f19; --panel2:#0e1422; --border:#1f2a44;
+    --txt:#e6f0ff; --muted:#9fb3d1; --cyan:#00e5ff; --red:#e04d4d; --green:#47d18c; --amber:#f6c25b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui,Segoe UI,Roboto,Ubuntu,sans-serif;overflow:hidden}
+  #layout{display:flex;height:100%}
+  #globe{flex:1;position:relative}
 
-  <style>
-    html, body { height: 100%; margin: 0; background:#000; overflow: hidden; }
-    #layout { display:flex; height:100%; width:100%; }
-    #globe { flex:1; position:relative; }
-    .badge { padding: 2px 8px; border-radius: 9999px; font-size: 11px; }
-  </style>
+  /* Sidebar */
+  aside{width:340px;background:linear-gradient(180deg,rgba(11,15,25,.9),rgba(11,15,25,.85));border-right:1px solid var(--border);padding:14px;overflow:auto}
+  h1{margin:0 0 10px;font-size:18px;color:var(--cyan)}
+  .row{display:flex;gap:8px;margin:8px 0}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--panel2);color:var(--txt);padding:8px 10px;border-radius:8px}
+  .btn:hover{filter:brightness(1.15)}
+  .btn-danger{background:#351616;border-color:#5b2b2b;color:#ffd6d6}
+  .btn-primary{background:#0a3440;border-color:#145461}
+  .btn-success{background:#0f2c1f;border-color:#1d5f42}
+
+  .tabs{display:flex;gap:8px;margin:10px 0}
+  .tab{flex:1;text-align:center;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--panel2);cursor:pointer}
+  .tab.active{background:#0c2233;border-color:#16425b;color:#c6eaff}
+
+  .card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;margin:10px 0}
+  .card h2{margin:0 0 8px;font-size:14px;color:#9ddcff}
+  label{display:block;margin:6px 0 4px;color:var(--muted);font-size:12px}
+  input[type="text"],input[type="number"],input[type="url"],select,textarea{
+    width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:#0a0f1a;color:var(--txt)
+  }
+  textarea{resize:vertical}
+
+  /* Lists */
+  ul{list-style:none;padding:0;margin:6px 0 0}
+  li.item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border-radius:8px}
+  li.item:hover{background:#121b2d}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .actions{display:flex;gap:6px}
+
+  /* Floating top-left controls (sempre visíveis) */
+  .floating{
+    position:absolute;left:10px;top:10px;z-index:10;
+    display:flex;gap:8px;background:rgba(11,15,25,.6);backdrop-filter:blur(4px);
+    border:1px solid var(--border);padding:6px;border-radius:10px
+  }
+
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:20}
+  .modal.open{display:flex}
+  .modal .box{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px;width:min(92vw,520px);max-height:90vh;overflow:auto}
+  .modal .box h3{margin:0 0 6px;color:#9ddcff}
+  .badge{padding:2px 8px;border:1px solid var(--border);border-radius:9999px;color:#d6e7ff;background:#0b1322;font-size:12px}
+  .muted{color:var(--muted)}
+</style>
 </head>
-<body class="text-white">
+<body>
   <div id="layout">
     <!-- Sidebar -->
-    <aside class="w-[340px] bg-black/80 border-r border-gray-800 p-4 space-y-4 overflow-y-auto">
-      <div class="flex items-center justify-between">
-        <h1 class="text-xl font-bold text-cyan-400">Rede Global • Demo</h1>
-        <button id="btnSeed" class="px-3 py-1 bg-gray-800 border border-gray-700 rounded hover:bg-gray-700 text-xs">Carregar exemplo</button>
+    <aside>
+      <h1>Rede Global • Demo (CSS)</h1>
+
+      <div class="row">
+        <label class="btn" for="importFile">Importar JSON</label>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+        <button id="btnExport" class="btn">Exportar JSON</button>
+        <button id="btnClear" class="btn btn-danger">Limpar dados</button>
       </div>
 
-      <!-- Ações globais -->
-      <div class="grid grid-cols-2 gap-2">
-        <label class="px-3 py-2 bg-gray-800/60 rounded border border-gray-700 hover:bg-gray-700 cursor-pointer text-center text-xs">
-          <input id="importFile" type="file" accept="application/json" class="hidden" />
-          Importar JSON
-        </label>
-        <button id="btnExport" class="px-3 py-2 bg-gray-800/60 rounded border border-gray-700 hover:bg-gray-700 text-xs">Exportar JSON</button>
-        <button id="btnClear" class="col-span-2 px-3 py-2 bg-red-800/70 rounded border border-red-700 hover:bg-red-700 text-xs">Limpar dados</button>
+      <div class="tabs">
+        <div id="tabPoints" class="tab active">Pontos</div>
+        <div id="tabLinks"  class="tab">Links</div>
       </div>
 
-      <!-- Tabs -->
-      <div class="flex gap-2">
-        <button id="tabPoints" class="flex-1 px-3 py-2 rounded bg-cyan-900/40 border border-cyan-700 text-cyan-200 text-sm font-semibold">Pontos</button>
-        <button id="tabLinks"  class="flex-1 px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-200 text-sm">Links</button>
-      </div>
-
-      <!-- Conteúdo: Pontos -->
-      <section id="panelPoints" class="space-y-4">
-        <!-- Form de ponto -->
-        <div class="p-3 bg-gray-900/70 border border-gray-800 rounded">
-          <h2 class="font-bold text-sm text-cyan-300 mb-2">Adicionar / Editar Ponto</h2>
-          <form id="pointForm" class="space-y-2">
+      <!-- Painel Pontos -->
+      <section id="panelPoints">
+        <div class="card">
+          <h2>Adicionar / Editar Ponto</h2>
+          <form id="pointForm">
             <input type="hidden" id="pointId" />
-            <div class="grid grid-cols-2 gap-2">
-              <input id="pointName" type="text" placeholder="Nome (ex: Torre Fanha 01)" required class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600" />
-              <select id="pointType" class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600">
-                <option value="torre">Torre</option>
-                <option value="cliente">Cliente</option>
-                <option value="pop">POP</option>
-              </select>
+            <div class="row">
+              <div style="flex:1">
+                <label>Nome</label>
+                <input id="pointName" type="text" placeholder="Ex.: Torre Fanha 01" required />
+              </div>
+              <div style="width:130px">
+                <label>Tipo</label>
+                <select id="pointType">
+                  <option value="torre">Torre</option>
+                  <option value="cliente">Cliente</option>
+                  <option value="pop">POP</option>
+                </select>
+              </div>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <input id="pointLat" type="number" step="0.0001" placeholder="Latitude" required class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600" />
-              <input id="pointLng" type="number" step="0.0001" placeholder="Longitude" required class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600" />
+            <div class="row">
+              <div style="flex:1">
+                <label>Latitude</label>
+                <input id="pointLat" type="number" step="0.0001" required />
+              </div>
+              <div style="flex:1">
+                <label>Longitude</label>
+                <input id="pointLng" type="number" step="0.0001" required />
+              </div>
             </div>
-            <textarea id="pointDesc" rows="2" placeholder="Descrição (opcional)" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600"></textarea>
-            <input id="pointImgUrl" type="url" placeholder="URL da imagem (opcional)" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-600" />
-            <label class="block mt-1 text-xs text-gray-400">ou envie uma imagem:
-              <input id="pointImgFile" type="file" accept="image/*" class="mt-1 block w-full text-xs" />
-            </label>
-            <div class="flex gap-2 pt-1">
-              <button class="px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600 rounded text-sm" type="submit">Salvar</button>
-              <button id="btnResetPointForm" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm" type="button">Limpar</button>
+            <label>Descrição (opcional)</label>
+            <textarea id="pointDesc" rows="2" placeholder="Breve descrição..."></textarea>
+
+            <label>URL da imagem (opcional)</label>
+            <input id="pointImgUrl" type="url" placeholder="https://..." />
+            <label>ou enviar imagem</label>
+            <input id="pointImgFile" type="file" accept="image/*" />
+
+            <div class="row">
+              <button class="btn btn-primary" type="submit">Salvar</button>
+              <button id="btnResetPointForm" class="btn" type="button">Limpar</button>
             </div>
           </form>
         </div>
 
-        <!-- Lista de pontos -->
-        <div class="p-3 bg-gray-900/70 border border-gray-800 rounded">
-          <div class="flex items-center justify-between">
-            <h3 class="font-bold text-sm text-cyan-300">Pontos da Rede</h3>
-            <span id="pointsCount" class="text-xs text-gray-400"></span>
+        <div class="card">
+          <div class="row" style="justify-content:space-between">
+            <h2>Pontos da Rede</h2>
+            <span id="pointsCount" class="muted"></span>
           </div>
-          <ul id="pointsList" class="mt-2 space-y-1 text-sm"></ul>
+          <ul id="pointsList"></ul>
         </div>
       </section>
 
-      <!-- Conteúdo: Links -->
-      <section id="panelLinks" class="hidden space-y-4">
-        <div class="p-3 bg-gray-900/70 border border-gray-800 rounded">
-          <h2 class="font-bold text-sm text-emerald-300 mb-2">Criar Link entre Pontos</h2>
-          <div class="grid grid-cols-2 gap-2">
-            <select id="arcStart" class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"></select>
-            <select id="arcEnd"   class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"></select>
+      <!-- Painel Links -->
+      <section id="panelLinks" style="display:none">
+        <div class="card">
+          <h2>Criar Link</h2>
+          <div class="row">
+            <select id="arcStart" style="flex:1"></select>
+            <select id="arcEnd" style="flex:1"></select>
           </div>
-          <input id="arcLabel" type="text" placeholder="Rótulo (opcional)" class="w-full mt-2 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
-          <div class="flex gap-2 pt-2">
-            <button id="btnAddArc" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-sm">Criar Link</button>
-            <button id="btnClearArcs" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">Limpar Links</button>
+          <label>Rótulo (opcional)</label>
+          <input id="arcLabel" type="text" placeholder="Ex.: Link SP-RJ" />
+          <div class="row">
+            <button id="btnAddArc" class="btn btn-success">Criar Link</button>
+            <button id="btnClearArcs" class="btn">Limpar Links</button>
           </div>
         </div>
 
-        <div class="p-3 bg-gray-900/70 border border-gray-800 rounded">
-          <div class="flex items-center justify-between">
-            <h3 class="font-bold text-sm text-emerald-300">Links da Rede</h3>
-            <span id="arcsCount" class="text-xs text-gray-400"></span>
+        <div class="card">
+          <div class="row" style="justify-content:space-between">
+            <h2>Links da Rede</h2>
+            <span id="arcsCount" class="muted"></span>
           </div>
-          <ul id="arcsList" class="mt-2 space-y-1 text-sm"></ul>
+          <ul id="arcsList"></ul>
         </div>
       </section>
     </aside>
 
     <!-- Globo -->
-    <main id="globe"></main>
+    <main id="globe">
+      <!-- Botões flutuantes sempre visíveis -->
+      <div class="floating">
+        <button id="btnSeed" class="btn">Carregar Exemplo</button>
+        <button id="btnHelp" class="btn">Ajuda</button>
+      </div>
+    </main>
   </div>
 
-  <!-- Modal de ponto -->
-  <div id="modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
-    <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md p-4 relative">
-      <button id="closeModal" class="absolute right-3 top-2 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
-      <div class="flex items-center justify-between">
-        <h2 id="mTitle" class="text-lg font-bold text-cyan-400"></h2>
-        <span id="mType" class="badge bg-gray-800 border border-gray-700 text-gray-200"></span>
+  <!-- Modal do Ponto -->
+  <div id="modal" class="modal">
+    <div class="box">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h3 id="mTitle">Título</h3>
+        <span id="mType" class="badge">tipo</span>
       </div>
-      <p id="mDesc" class="text-sm text-gray-300 mt-1"></p>
-      <img id="mImg" src="" alt="" class="w-full rounded-md mt-3" />
-      <div class="flex gap-2 pt-3">
-        <button id="mEdit" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">Editar</button>
-        <button id="mDelete" class="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded text-sm">Excluir</button>
+      <p id="mDesc" class="muted"></p>
+      <img id="mImg" src="" alt="" style="width:100%;border-radius:10px;margin-top:8px"/>
+      <div class="row">
+        <button id="mEdit" class="btn">Editar</button>
+        <button id="mDelete" class="btn btn-danger">Excluir</button>
+        <button id="mClose" class="btn">Fechar</button>
       </div>
     </div>
   </div>
 
-  <script>
-    // ---------------------------
-    // Estado e Persistência
-    // ---------------------------
-    const LS_POINTS_KEY = "globe_points_v1";
-    const LS_ARCS_KEY   = "globe_arcs_v1";
+<script>
+/* ===== Persistência & Estado ===== */
+const LS_POINTS_KEY = "globe_points_v1_css";
+const LS_ARCS_KEY   = "globe_arcs_v1_css";
 
-    const pinColors = {
-      torre:   "rgba(255, 87, 34, 0.95)",   // laranja
-      cliente: "rgba(33, 150, 243, 0.95)",  // azul
-      pop:     "rgba(76, 175, 80, 0.95)"    // verde
+const pinColors = {
+  torre:   "rgba(255,87,34,0.95)",
+  cliente: "rgba(33,150,243,0.95)",
+  pop:     "rgba(76,175,80,0.95)"
+};
+
+let points = loadLS(LS_POINTS_KEY) ?? [];
+let arcs   = loadLS(LS_ARCS_KEY) ?? [];
+
+// Se não há dados, carrega exemplo automaticamente 1a vez
+if (!points.length && !arcs.length) {
+  seedData();
+}
+
+function saveLS(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+function loadLS(key){
+  try { return JSON.parse(localStorage.getItem(key) || "null"); }
+  catch { return null; }
+}
+function uuid(){
+  return (crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function escapeHTML(s){ return String(s??'').replace(/[&<>"']/g, m => ({'&':'&','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); }
+
+/* ===== Globo ===== */
+const globeEl = document.getElementById("globe");
+const g = Globe()(globeEl)
+  .globeImageUrl("//unpkg.com/three-globe/example/img/earth-dark.jpg")
+  .bumpImageUrl("//unpkg.com/three-globe/example/img/earth-topology.png")
+  .backgroundImageUrl("//unpkg.com/three-globe/example/img/night-sky.png")
+  .backgroundColor("#000000")
+  .pointAltitude(0.015)
+  .pointRadius(0.38)
+  .onPointClick(handlePointClick);
+
+g.controls().autoRotate = true;
+g.controls().autoRotateSpeed = 0.6;
+
+function refreshGlobe(){
+  g.pointsData(points)
+   .pointLat("lat").pointLng("lng")
+   .pointColor(p => pinColors[p.type] || "#00FFFF")
+   .pointLabel(p => `<b>${escapeHTML(p.name)}</b><br/><i>${escapeHTML(p.type)}</i>`);
+
+  g.arcsData(arcs)
+   .arcStartLat(d => getPoint(d.start)?.lat)
+   .arcStartLng(d => getPoint(d.start)?.lng)
+   .arcEndLat(d => getPoint(d.end)?.lat)
+   .arcEndLng(d => getPoint(d.end)?.lng)
+   .arcColor(() => ['rgba(0,255,255,0.7)','rgba(0,255,255,0.3)'])
+   .arcDashLength(0.4).arcDashGap(0.2).arcDashAnimateTime(2000).arcStroke(0.5);
+}
+function fit(){ g.width(globeEl.clientWidth); g.height(globeEl.clientHeight); }
+window.addEventListener("resize", fit); fit();
+
+/* ===== UI Básica ===== */
+const $ = s => document.querySelector(s);
+const pointsList = $("#pointsList");
+const pointsCount= $("#pointsCount");
+const arcsList   = $("#arcsList");
+const arcsCount  = $("#arcsCount");
+
+// Tabs
+$("#tabPoints").onclick = () => switchTab("points");
+$("#tabLinks").onclick  = () => switchTab("links");
+function switchTab(which){
+  const tp=$("#tabPoints"), tl=$("#tabLinks"), pp=$("#panelPoints"), pl=$("#panelLinks");
+  if (which==="points"){ tp.classList.add("active"); tl.classList.remove("active"); pp.style.display="block"; pl.style.display="none"; }
+  else { tl.classList.add("active"); tp.classList.remove("active"); pl.style.display="block"; pp.style.display="none"; populateArcSelectors(); }
+}
+
+/* ===== Pontos: Form & Lista ===== */
+const pointForm = $("#pointForm");
+const pointId   = $("#pointId");
+const pointName = $("#pointName");
+const pointType = $("#pointType");
+const pointLat  = $("#pointLat");
+const pointLng  = $("#pointLng");
+const pointDesc = $("#pointDesc");
+const pointImgUrl = $("#pointImgUrl");
+const pointImgFile= $("#pointImgFile");
+
+$("#btnResetPointForm").onclick = () => { pointForm.reset(); pointId.value=""; };
+
+pointForm.onsubmit = async (e) => {
+  e.preventDefault();
+  const data = {
+    id: pointId.value || uuid(),
+    name: pointName.value.trim(),
+    type: pointType.value,
+    lat: parseFloat(pointLat.value),
+    lng: parseFloat(pointLng.value),
+    description: pointDesc.value.trim(),
+    img: pointImgUrl.value.trim() || ""
+  };
+  if (pointImgFile.files && pointImgFile.files[0]) {
+    data.img = await fileToDataURL(pointImgFile.files[0]);
+  }
+  const exists = points.some(p=>p.id===data.id);
+  points = exists ? points.map(p=>p.id===data.id?data:p) : [...points,data];
+  saveLS(LS_POINTS_KEY, points);
+  renderPointsList(); refreshGlobe();
+  pointForm.reset(); pointId.value="";
+};
+
+function fileToDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+function renderPointsList(){
+  pointsList.innerHTML=""; pointsCount.textContent = `${points.length} ponto(s)`;
+  points.forEach(p=>{
+    const li=document.createElement("li"); li.className="item";
+    li.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
+        <span class="dot" style="background:${pinColors[p.type]||'#00ffff'}"></span>
+        <span>${escapeHTML(p.name)}</span>
+      </div>
+      <div class="actions">
+        <button class="btn" data-a="edit">Editar</button>
+        <button class="btn btn-danger" data-a="del">Excluir</button>
+        <button class="btn btn-primary" data-a="focus">Focar</button>
+      </div>`;
+    li.querySelector('[data-a="edit"]').onclick = ()=> editPoint(p.id);
+    li.querySelector('[data-a="del"]').onclick  = ()=> deletePoint(p.id);
+    li.querySelector('[data-a="focus"]').onclick= ()=> focusPoint(p.id);
+    li.firstElementChild.onclick = ()=> focusPoint(p.id);
+    pointsList.appendChild(li);
+  });
+}
+
+function getPoint(id){ return points.find(p=>p.id===id); }
+
+function editPoint(id){
+  const p=getPoint(id); if(!p) return;
+  pointId.value=p.id; pointName.value=p.name; pointType.value=p.type;
+  pointLat.value=p.lat; pointLng.value=p.lng; pointDesc.value=p.description||"";
+  pointImgUrl.value=(p.img && p.img.startsWith("http"))?p.img:"";
+  pointImgFile.value="";
+  switchTab("points");
+}
+
+function deletePoint(id){
+  if(!confirm("Excluir este ponto? Isso removerá links associados.")) return;
+  points = points.filter(p=>p.id!==id);
+  arcs   = arcs.filter(a=>a.start!==id && a.end!==id);
+  saveLS(LS_POINTS_KEY, points); saveLS(LS_ARCS_KEY, arcs);
+  renderPointsList(); renderArcsList(); refreshGlobe();
+}
+
+function focusPoint(id){
+  const p=getPoint(id); if(!p) return;
+  g.controls().autoRotate=false;
+  g.pointOfView({lat:p.lat,lng:p.lng,altitude:1.3},900);
+  setTimeout(()=>openPointModal(p),950);
+}
+
+/* ===== Links ===== */
+const arcStart=$("#arcStart"), arcEnd=$("#arcEnd"), arcLabel=$("#arcLabel");
+$("#btnAddArc").onclick = ()=>{
+  const s=arcStart.value, e=arcEnd.value;
+  if(!s||!e||s===e){ alert("Selecione dois pontos diferentes"); return; }
+  arcs=[...arcs,{id:uuid(),start:s,end:e,label:arcLabel.value.trim()}];
+  saveLS(LS_ARCS_KEY, arcs); arcLabel.value="";
+  renderArcsList(); refreshGlobe();
+};
+$("#btnClearArcs").onclick = ()=>{
+  if(!confirm("Remover TODOS os links?")) return;
+  arcs=[]; saveLS(LS_ARCS_KEY, arcs); renderArcsList(); refreshGlobe();
+};
+function populateArcSelectors(){
+  const opts = points.map(p=>`<option value="${p.id}">${escapeHTML(p.name)}</option>`).join("");
+  arcStart.innerHTML=`<option value="">Origem...</option>${opts}`;
+  arcEnd.innerHTML  =`<option value="">Destino...</option>${opts}`;
+}
+function renderArcsList(){
+  const list=$("#arcsList"), count=$("#arcsCount");
+  list.innerHTML=""; count.textContent=`${arcs.length} link(s)`;
+  arcs.forEach(a=>{
+    const s=getPoint(a.start), e=getPoint(a.end); if(!s||!e) return;
+    const li=document.createElement("li"); li.className="item";
+    const label=a.label || `${s.name} ↔ ${e.name}`;
+    li.innerHTML=`
+      <div style="flex:1">${escapeHTML(label)}</div>
+      <div class="actions">
+        <button class="btn btn-danger" data-a="del">Excluir</button>
+        <button class="btn btn-success" data-a="fly">Voar</button>
+      </div>`;
+    li.querySelector('[data-a="del"]').onclick=()=>{
+      if(!confirm("Excluir este link?")) return;
+      arcs=arcs.filter(x=>x.id!==a.id); saveLS(LS_ARCS_KEY, arcs); renderArcsList(); refreshGlobe();
     };
-
-    let points = loadLS(LS_POINTS_KEY) ?? [];
-    let arcs   = loadLS(LS_ARCS_KEY) ?? [];
-
-    function saveLS(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-    function loadLS(key) {
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      try { return JSON.parse(raw); } catch { return null; }
-    }
-
-    function uuid() {
-      return (crypto && crypto.randomUUID) ? crypto.randomUUID() :
-        'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    }
-
-    // ---------------------------
-    // Globo 3D
-    // ---------------------------
-    const globeEl = document.getElementById("globe");
-    const g = Globe()(globeEl)
-      .globeImageUrl("//unpkg.com/three-globe/example/img/earth-dark.jpg")
-      .bumpImageUrl("//unpkg.com/three-globe/example/img/earth-topology.png")
-      .backgroundImageUrl("//unpkg.com/three-globe/example/img/night-sky.png")
-      .backgroundColor("#000000")
-      .pointAltitude(0.015)
-      .pointRadius(0.38)
-      .onPointClick(handlePointClick);
-
-    g.controls().autoRotate = true;
-    g.controls().autoRotateSpeed = 0.6;
-
-    // Bind data
-    function refreshGlobe() {
-      g.pointsData(points)
-       .pointLat("lat")
-       .pointLng("lng")
-       .pointColor(p => pinColors[p.type] ?? "#00FFFF")
-       .pointLabel(p => `
-        <div>
-          <b>${escapeHTML(p.name)}</b><br/>
-          <i>${escapeHTML(p.type)}</i>
-        </div>
-      `);
-
-      g.arcsData(arcs)
-       .arcStartLat(d => getPointById(d.start)?.lat)
-       .arcStartLng(d => getPointById(d.start)?.lng)
-       .arcEndLat(d => getPointById(d.end)?.lat)
-       .arcEndLng(d => getPointById(d.end)?.lng)
-       .arcColor(() => ['rgba(0,255,255,0.7)','rgba(0,255,255,0.3)'])
-       .arcDashLength(0.4)
-       .arcDashGap(0.2)
-       .arcDashAnimateTime(2000)
-       .arcStroke(0.5);
-    }
-
-    function getPointById(id) { return points.find(p => p.id === id); }
-
-    function fit() {
-      g.width(globeEl.clientWidth);
-      g.height(globeEl.clientHeight);
-    }
-    window.addEventListener("resize", fit);
-    fit();
-
-    // ---------------------------
-    // UI Helpers
-    // ---------------------------
-    const $ = sel => document.querySelector(sel);
-    const $$ = sel => Array.from(document.querySelectorAll(sel));
-    function escapeHTML(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
-    // Tabs
-    const tabPoints = $("#tabPoints");
-    const tabLinks  = $("#tabLinks");
-    const panelPoints = $("#panelPoints");
-    const panelLinks  = $("#panelLinks");
-    tabPoints.onclick = () => {
-      tabPoints.className = "flex-1 px-3 py-2 rounded bg-cyan-900/40 border border-cyan-700 text-cyan-200 text-sm font-semibold";
-      tabLinks.className  = "flex-1 px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-200 text-sm";
-      panelPoints.classList.remove("hidden");
-      panelLinks.classList.add("hidden");
+    li.querySelector('[data-a="fly"]').onclick=()=>{
+      const mid={lat:(s.lat+e.lat)/2,lng:(s.lng+e.lng)/2};
+      g.controls().autoRotate=false; g.pointOfView({lat:mid.lat,lng:mid.lng,altitude:1.8},900);
     };
-    tabLinks.onclick = () => {
-      tabLinks.className  = "flex-1 px-3 py-2 rounded bg-emerald-900/40 border border-emerald-700 text-emerald-200 text-sm font-semibold";
-      tabPoints.className = "flex-1 px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-200 text-sm";
-      panelLinks.classList.remove("hidden");
-      panelPoints.classList.add("hidden");
-      populateArcSelectors();
-    };
+    list.appendChild(li);
+  });
+}
 
-    // ---------------------------
-    // Pontos: Form + Lista
-    // ---------------------------
-    const pointForm = $("#pointForm");
-    const pointId   = $("#pointId");
-    const pointName = $("#pointName");
-    const pointType = $("#pointType");
-    const pointLat  = $("#pointLat");
-    const pointLng  = $("#pointLng");
-    const pointDesc = $("#pointDesc");
-    const pointImgUrl  = $("#pointImgUrl");
-    const pointImgFile = $("#pointImgFile");
-    const pointsList = $("#pointsList");
-    const pointsCount = $("#pointsCount");
+/* ===== Modal ===== */
+const modal=$("#modal"), mTitle=$("#mTitle"), mType=$("#mType"), mDesc=$("#mDesc"), mImg=$("#mImg");
+let modalPointId=null;
+function openPointModal(p){
+  modalPointId=p.id;
+  mTitle.textContent=p.name;
+  mType.textContent=p.type;
+  mDesc.textContent=p.description||"";
+  mImg.src=p.img || "https://placehold.co/800x500/0B1220/E2E8F0?text=Sem+Imagem";
+  modal.classList.add("open");
+}
+function closePointModal(){ modalPointId=null; modal.classList.remove("open"); g.controls().autoRotate=true; }
+$("#mClose").onclick=closePointModal;
+modal.onclick = (e)=>{ if(e.target===modal) closePointModal(); };
+$("#mEdit").onclick = ()=>{ if(!modalPointId)return; editPoint(modalPointId); closePointModal(); };
+$("#mDelete").onclick= ()=>{ if(!modalPointId)return; const id=modalPointId; closePointModal(); deletePoint(id); };
 
-    $("#btnResetPointForm").onclick = () => { pointForm.reset(); pointId.value = ""; };
+/* ===== Import/Export/Clear/Seed/Help ===== */
+$("#btnExport").onclick = ()=>{
+  const data={points,arcs};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download="rede-visual.json"; a.click(); URL.revokeObjectURL(url);
+};
+$("#importFile").addEventListener("change", async (e)=>{
+  const file=e.target.files?.[0]; if(!file) return;
+  try{
+    const text=await file.text(); const data=JSON.parse(text);
+    if(!Array.isArray(data.points)||!Array.isArray(data.arcs)) throw new Error("Formato inválido");
+    points=data.points; arcs=data.arcs;
+    saveLS(LS_POINTS_KEY,points); saveLS(LS_ARCS_KEY,arcs);
+    renderPointsList(); renderArcsList(); refreshGlobe(); alert("Importado!");
+  }catch(err){ console.error(err); alert("Falha ao importar JSON."); }
+  finally{ e.target.value=""; }
+});
+$("#btnClear").onclick=()=>{
+  if(!confirm("Limpar TODOS os dados?")) return;
+  points=[]; arcs=[];
+  saveLS(LS_POINTS_KEY,points); saveLS(LS_ARCS_KEY,arcs);
+  renderPointsList(); renderArcsList(); refreshGlobe();
+};
+$("#btnSeed").onclick=()=>{ if(confirm("Carregar dados de exemplo?")) { seedData(); saveAll(); rerenderAll(); } };
+$("#btnHelp").onclick=()=> alert(
+  "Como usar:\n\n1) Clique em 'Carregar Exemplo' (topo esquerdo) para ver pontos e links.\n2) Use o formulário na sidebar para adicionar/editar pontos (pode colar URL de imagem ou enviar arquivo).\n3) Na aba 'Links', crie conexões entre pontos.\n4) Clique nos nomes (lista) ou nos pontos (globo) para focar e ver o modal.\n5) Use Importar/Exportar JSON para salvar e restaurar sua rede."
+);
 
-    pointForm.onsubmit = async (e) => {
-      e.preventDefault();
+function seedData(){
+  points = [
+    { id: uuid(), lat:-23.5505, lng:-46.6333, name:"POP São Paulo", type:"pop",    description:"Ponto de Presença principal em São Paulo.", img:"https://placehold.co/800x500/0B1220/E2E8F0?text=POP+SP" },
+    { id: uuid(), lat:-22.9068, lng:-43.1729, name:"Torre Rio",     type:"torre",  description:"Cobertura zona sul.", img:"https://placehold.co/800x500/0B1220/E2E8F0?text=Torre+RJ" },
+    { id: uuid(), lat:-25.4284, lng:-49.2733, name:"Cliente Curitiba", type:"cliente", description:"Cliente corporativo.", img:"https://placehold.co/800x500/0B1220/E2E8F0?text=Cliente+CTBA" },
+    { id: uuid(), lat:-15.7942, lng:-47.8825, name:"POP Brasília",  type:"pop",    description:"Ponto de Presença na capital.", img:"https://placehold.co/800x500/0B1220/E2E8F0?text=POP+BSB" }
+  ];
+  arcs = [
+    { id: uuid(), start: points[0].id, end: points[1].id, label:"Link SP-RJ" },
+    { id: uuid(), start: points[0].id, end: points[2].id, label:"Link SP-PR" }
+  ];
+}
+function saveAll(){ saveLS(LS_POINTS_KEY,points); saveLS(LS_ARCS_KEY,arcs); }
+function rerenderAll(){ renderPointsList(); renderArcsList(); refreshGlobe(); }
 
-      const data = {
-        id: pointId.value || uuid(),
-        name: pointName.value.trim(),
-        type: pointType.value,
-        lat: parseFloat(pointLat.value),
-        lng: parseFloat(pointLng.value),
-        description: pointDesc.value.trim(),
-        img: pointImgUrl.value.trim() || "" // pode ser substituído por dataURL abaixo
-      };
-
-      // Se selecionou arquivo, converte para dataURL (salva localmente)
-      if (pointImgFile.files && pointImgFile.files[0]) {
-        data.img = await fileToDataURL(pointImgFile.files[0]);
-      }
-
-      const exists = points.some(p => p.id === data.id);
-      if (exists) {
-        points = points.map(p => p.id === data.id ? data : p);
-      } else {
-        points = [...points, data];
-      }
-
-      saveLS(LS_POINTS_KEY, points);
-      renderPointsList();
-      refreshGlobe();
-      pointForm.reset();
-      pointId.value = "";
-    };
-
-    function fileToDataURL(file) {
-      return new Promise((resolve,reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result);
-        fr.onerror = reject;
-        fr.readAsDataURL(file);
-      });
-    }
-
-    function renderPointsList() {
-      pointsList.innerHTML = "";
-      pointsCount.textContent = `${points.length} ponto(s)`;
-      points.forEach(p => {
-        const li = document.createElement("li");
-        li.className = "flex items-center justify-between gap-2 p-2 rounded hover:bg-gray-800/50";
-        li.innerHTML = `
-          <div class="flex items-center gap-2 cursor-pointer flex-1">
-            <span class="inline-block w-3 h-3 rounded-full" style="background:${pinColors[p.type] ?? '#00FFFF'}"></span>
-            <span class="truncate">${escapeHTML(p.name)}</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button class="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs" data-action="edit">Editar</button>
-            <button class="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-xs" data-action="del">Excluir</button>
-            <button class="px-2 py-1 bg-cyan-700 hover:bg-cyan-600 rounded text-xs" data-action="focus">Focar</button>
-          </div>
-        `;
-        li.querySelector('[data-action="edit"]').onclick = () => editPoint(p.id);
-        li.querySelector('[data-action="del"]').onclick  = () => deletePoint(p.id);
-        li.querySelector('[data-action="focus"]').onclick= () => focusPoint(p.id);
-        li.querySelector(".flex-1").onclick = () => focusPoint(p.id);
-        pointsList.appendChild(li);
-      });
-    }
-
-    function editPoint(id) {
-      const p = getPointById(id);
-      if (!p) return;
-      pointId.value = p.id;
-      pointName.value = p.name;
-      pointType.value = p.type;
-      pointLat.value = p.lat;
-      pointLng.value = p.lng;
-      pointDesc.value = p.description ?? "";
-      pointImgUrl.value = (p.img && p.img.startsWith("http")) ? p.img : "";
-      pointImgFile.value = ""; // não conseguimos popular arquivo (limitação de segurança)
-      tabPoints.click();
-    }
-
-    function deletePoint(id) {
-      if (!confirm("Excluir este ponto? Isso também removerá links associados.")) return;
-      points = points.filter(p => p.id !== id);
-      arcs   = arcs.filter(a => a.start !== id && a.end !== id);
-      saveLS(LS_POINTS_KEY, points);
-      saveLS(LS_ARCS_KEY, arcs);
-      renderPointsList();
-      renderArcsList();
-      refreshGlobe();
-    }
-
-    function focusPoint(id) {
-      const p = getPointById(id);
-      if (!p) return;
-      g.controls().autoRotate = false;
-      g.pointOfView({ lat: p.lat, lng: p.lng, altitude: 1.3 }, 900);
-      setTimeout(() => openPointModal(p), 950);
-    }
-
-    // ---------------------------
-    // Links (Arcos)
-    // ---------------------------
-    const arcStart = $("#arcStart");
-    const arcEnd   = $("#arcEnd");
-    const arcLabel = $("#arcLabel");
-    const arcsList = $("#arcsList");
-    const arcsCount = $("#arcsCount");
-
-    $("#btnAddArc").onclick = () => {
-      const start = arcStart.value;
-      const end   = arcEnd.value;
-      if (!start || !end || start === end) {
-        return alert("Selecione dois pontos diferentes para criar o link.");
-      }
-      const label = arcLabel.value.trim();
-      const newArc = { id: uuid(), start, end, label };
-      arcs = [...arcs, newArc];
-      saveLS(LS_ARCS_KEY, arcs);
-      arcLabel.value = "";
-      renderArcsList();
-      refreshGlobe();
-    };
-
-    $("#btnClearArcs").onclick = () => {
-      if (!confirm("Remover TODOS os links?")) return;
-      arcs = [];
-      saveLS(LS_ARCS_KEY, arcs);
-      renderArcsList();
-      refreshGlobe();
-    };
-
-    function populateArcSelectors() {
-      const opts = points.map(p => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join("");
-      arcStart.innerHTML = `<option value="">Origem...</option>${opts}`;
-      arcEnd.innerHTML   = `<option value="">Destino...</option>${opts}`;
-    }
-
-    function renderArcsList() {
-      arcsList.innerHTML = "";
-      arcsCount.textContent = `${arcs.length} link(s)`;
-      arcs.forEach(a => {
-        const s = getPointById(a.start);
-        const e = getPointById(a.end);
-        if (!s || !e) return; // segurança para dados quebrados
-        const li = document.createElement("li");
-        li.className = "flex items-center justify-between gap-2 p-2 rounded hover:bg-gray-800/50";
-        const label = a.label || `${s.name} ↔ ${e.name}`;
-        li.innerHTML = `
-          <div class="truncate">${escapeHTML(label)}</div>
-          <div class="flex items-center gap-1">
-            <button class="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-xs" data-action="del">Excluir</button>
-            <button class="px-2 py-1 bg-cyan-700 hover:bg-cyan-600 rounded text-xs" data-action="fly">Voar</button>
-          </div>
-        `;
-        li.querySelector('[data-action="del"]').onclick = () => {
-          if (!confirm("Excluir este link?")) return;
-          arcs = arcs.filter(x => x.id !== a.id);
-          saveLS(LS_ARCS_KEY, arcs);
-          renderArcsList();
-          refreshGlobe();
-        };
-        li.querySelector('[data-action="fly"]').onclick = () => {
-          // foca meio termo do arco
-          const mid = {
-            lat: (s.lat + e.lat)/2,
-            lng: (s.lng + e.lng)/2
-          };
-          g.controls().autoRotate = false;
-          g.pointOfView({ lat: mid.lat, lng: mid.lng, altitude: 1.8 }, 900);
-        };
-        arcsList.appendChild(li);
-      });
-    }
-
-    // ---------------------------
-    // Modal de Ponto
-    // ---------------------------
-    const modal = $("#modal");
-    const closeModalBtn = $("#closeModal");
-    const mTitle = $("#mTitle");
-    const mDesc  = $("#mDesc");
-    const mImg   = $("#mImg");
-    const mType  = $("#mType");
-    const mEdit  = $("#mEdit");
-    const mDelete= $("#mDelete");
-    let modalPointId = null;
-
-    function openPointModal(p) {
-      modalPointId = p.id;
-      mTitle.textContent = p.name;
-      mType.textContent  = p.type;
-      mType.style.borderColor = "#374151";
-      mType.style.backgroundColor = "#111827";
-      mDesc.textContent  = p.description || "";
-      mImg.src = p.img || "https://placehold.co/800x500/0B1220/E2E8F0?text=Sem+Imagem";
-      modal.classList.remove("hidden");
-      modal.classList.add("flex");
-    }
-    function closePointModal() {
-      modalPointId = null;
-      modal.classList.add("hidden");
-      modal.classList.remove("flex");
-      g.controls().autoRotate = true;
-    }
-    closeModalBtn.onclick = closePointModal;
-    modal.onclick = (e) => { if (e.target === modal) closePointModal(); };
-    mEdit.onclick = () => { if (!modalPointId) return; editPoint(modalPointId); closePointModal(); };
-    mDelete.onclick = () => { if (!modalPointId) return; const id = modalPointId; closePointModal(); deletePoint(id); };
-
-    function handlePointClick(p) {
-      g.controls().autoRotate = false;
-      g.pointOfView({ lat: p.lat, lng: p.lng, altitude: 1.3 }, 900);
-      setTimeout(() => openPointModal(p), 950);
-    }
-
-    // ---------------------------
-    // Import/Export/Clear/Seed
-    // ---------------------------
-    $("#btnExport").onclick = () => {
-      const data = { points, arcs };
-      const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
-      const url  = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "rede-visual.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-
-    $("#importFile").addEventListener("change", async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        if (!Array.isArray(data.points) || !Array.isArray(data.arcs)) {
-          alert("Arquivo inválido. Esperado JSON com { points: [], arcs: [] }.");
-          return;
-        }
-        points = data.points;
-        arcs   = data.arcs;
-        saveLS(LS_POINTS_KEY, points);
-        saveLS(LS_ARCS_KEY, arcs);
-        renderPointsList();
-        renderArcsList();
-        refreshGlobe();
-        alert("Dados importados com sucesso!");
-      } catch (err) {
-        console.error(err);
-        alert("Falha ao importar JSON.");
-      } finally {
-        e.target.value = "";
-      }
-    });
-
-    $("#btnClear").onclick = () => {
-      if (!confirm("Tem certeza que deseja limpar TODOS os dados?")) return;
-      points = [];
-      arcs   = [];
-      saveLS(LS_POINTS_KEY, points);
-      saveLS(LS_ARCS_KEY, arcs);
-      renderPointsList();
-      renderArcsList();
-      refreshGlobe();
-    };
-
-    $("#btnSeed").onclick = () => {
-      if (!confirm("Carregar dados de exemplo? Isso substituirá seus dados atuais.")) return;
-      points = [
-        { id: uuid(), lat: -23.5505, lng: -46.6333, name: "POP São Paulo", type: "pop",    description: "Ponto de Presença principal em São Paulo.", img: "https://placehold.co/800x500/0B1220/E2E8F0?text=POP+SP" },
-        { id: uuid(), lat: -22.9068, lng: -43.1729, name: "Torre Rio",    type: "torre",  description: "Cobertura zona sul.", img: "https://placehold.co/800x500/0B1220/E2E8F0?text=Torre+RJ" },
-        { id: uuid(), lat: -25.4284, lng: -49.2733, name: "Cliente Curitiba", type: "cliente", description: "Cliente corporativo.", img: "https://placehold.co/800x500/0B1220/E2E8F0?text=Cliente+CTBA" },
-        { id: uuid(), lat: -15.7942, lng: -47.8825, name: "POP Brasília", type: "pop",    description: "Ponto de Presença na capital.", img: "https://placehold.co/800x500/0B1220/E2E8F0?text=POP+BSB" }
-      ];
-      // cria 2 links
-      arcs = [
-        { id: uuid(), start: points[0].id, end: points[1].id, label: "Link SP-RJ" },
-        { id: uuid(), start: points[0].id, end: points[2].id, label: "Link SP-PR" }
-      ];
-      saveLS(LS_POINTS_KEY, points);
-      saveLS(LS_ARCS_KEY, arcs);
-      renderPointsList();
-      renderArcsList();
-      refreshGlobe();
-      alert("Exemplo carregado!");
-    };
-
-    // ---------------------------
-    // Inicialização
-    // ---------------------------
-    renderPointsList();
-    renderArcsList();
-    refreshGlobe();
-
-    // ---------------------------
-    // Utilitários vários
-    // ---------------------------
-    function renderArcsList() {
-      arcsList.innerHTML = "";
-      arcsCount.textContent = `${arcs.length} link(s)`;
-      arcs.forEach(a => {
-        const s = getPointById(a.start);
-        const e = getPointById(a.end);
-        if (!s || !e) return;
-        const label = a.label || `${s.name} ↔ ${e.name}`;
-        const li = document.createElement("li");
-        li.className = "flex items-center justify-between gap-2 p-2 rounded hover:bg-gray-800/50";
-        li.innerHTML = `
-          <div class="truncate">${escapeHTML(label)}</div>
-          <div class="flex items-center gap-1">
-            <button class="px-2 py-1 bg-red-700 hover:bg-red-600 rounded text-xs" data-action="del">Excluir</button>
-            <button class="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-xs" data-action="fly">Voar</button>
-          </div>
-        `;
-        li.querySelector('[data-action="del"]').onclick = () => {
-          if (!confirm("Excluir este link?")) return;
-          arcs = arcs.filter(x => x.id !== a.id);
-          saveLS(LS_ARCS_KEY, arcs);
-          renderArcsList();
-          refreshGlobe();
-        };
-        li.querySelector('[data-action="fly"]').onclick = () => {
-          const mid = { lat: (s.lat + e.lat)/2, lng: (s.lng + e.lng)/2 };
-          g.controls().autoRotate = false;
-          g.pointOfView({ lat: mid.lat, lng: mid.lng, altitude: 1.8 }, 900);
-        };
-        arcsList.appendChild(li);
-      });
-    }
-  </script>
+renderPointsList(); renderArcsList(); refreshGlobe();
+</script>
 </body>
 </html>
